@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using System.Collections;
 
 
 public class GameManager : MonoBehaviour
@@ -11,6 +12,7 @@ public class GameManager : MonoBehaviour
     public TMP_Text timerText;
     public TMP_Text scoreText;
     public TMP_Text streakText;
+    public Animator animator;
     public TMP_Text averageReactionTimeText;
     public TMP_Text highestStreakText;
     public GameObject streakScreen;
@@ -81,12 +83,13 @@ public class GameManager : MonoBehaviour
         if(Gamepad.current == null) return;
         foreach (var device in Gamepad.all)
         {
+            Debug.Log("Devices connected: \n");
             Debug.Log(device.name);
             if(device.name.Contains("XInput"))
             {
                 controllerConnectedGeneric = true;
             }
-            if(device.name.Contains("Sony"))
+            if(device.name.Contains("Dual"))
             {
                 controllerConnectedPlaystation = true;
             }
@@ -184,6 +187,13 @@ public class GameManager : MonoBehaviour
         {
             timer -= Time.deltaTime;
             timerText.text = "Time: " + Mathf.Ceil(timer).ToString();
+            float reactionTime = Time.time - promptStartTime;
+            if (reactionTime >= 1.2f)
+            {
+                currentStreak = 0;
+                streakScore = 0f;
+                streakScreen.SetActive(false);
+            }
         }
     }
 
@@ -215,48 +225,53 @@ public class GameManager : MonoBehaviour
 
     void OnButtonPress(string buttonPressed)
     {
-        Debug.Log(buttonPressed);
         // Correct button     
         if (gameActive && buttonPressed == currentButtonPrompt)
         {
-            // Calculate reaction time
-            float reactionTime = Time.time - promptStartTime;
-            totalReactionTime += reactionTime;
-            baseScore += 1;
-            int reactionScore = Mathf.Max(1, (int)(.1/reactionTime));        
-            if (reactionTime >= 1.2f)
-            {
-                currentStreak = 0;
-                streakScore = 0f;
-                streakScreen.SetActive(false);
-            }
-            else
-            {
-                streakScore += .2f;
-                currentStreak++;
-            }
-            if (currentStreak >= 5)
-            {
-                streakScreen.SetActive(true);
-                streakText.text = "Streak: " + currentStreak;
-            }
-            if (currentStreak > highestStreak) highestStreak = currentStreak;
-            totalStreakScore += streakScore;
-            totalReactionScore += reactionScore;
-            totalScore = (int)(totalScore + 1 + reactionScore + streakScore);
+            IncreaseScore();
         }
         // Incorrect button
         else
         {
-            totalScore -= 2;
-            currentStreak = 0;
-            streakScore = 0f;
-            VibrateController();
-            streakScreen.SetActive(false);
+            DecreaseScore();
         }
         scoreText.text = totalScore.ToString();
         GenerateNewButtonPrompt();
     }
+    
+    void IncreaseScore()
+    {
+        // Calculate reaction time
+        float reactionTime = Time.time - promptStartTime;
+        totalReactionTime += reactionTime;
+        baseScore += 1;
+        int reactionScore = Mathf.Max(1, (int)(.1/reactionTime));        
+        streakScore += .2f;
+        currentStreak++;
+        if (currentStreak >= 5)
+        {
+            streakScreen.SetActive(true);
+            streakText.text = "Streak: " + currentStreak;
+        }
+        if (currentStreak > highestStreak) 
+        {
+            highestStreak = currentStreak;
+        }
+        totalStreakScore += streakScore;
+        totalReactionScore += reactionScore;
+        totalScore = (int)(totalScore + 1 + reactionScore + streakScore);
+        AnimateScore();
+    }
+    
+    void DecreaseScore()
+    {
+        totalScore -= 2;
+        currentStreak = 0;
+        streakScore = 0f;
+        VibrateController();
+        streakScreen.SetActive(false);
+    }
+
 
     void EndGame()
     {
@@ -328,4 +343,17 @@ public class GameManager : MonoBehaviour
     {
         Gamepad.current?.SetMotorSpeeds(0,0);
     }
+    
+    void AnimateScore()
+    {
+        animator.SetTrigger("Changed");
+        StartCoroutine(ResetAnimationTrigger());
+    }
+    
+    IEnumerator ResetAnimationTrigger()
+    {
+        yield return new WaitForSeconds(0.2f);
+        animator.ResetTrigger("Changed");
+    }
+
 }
